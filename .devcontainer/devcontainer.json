@@ -1,0 +1,30 @@
+{
+    "name": "Project",
+
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": "."
+    },
+
+    "settings": {
+        "python.defaultInterpreterPath": "/opt/venv/bin/python"
+    },
+
+    "extensions": [
+        "ms-python.python",
+        "quarto.quarto",
+        "ms-toolsai.jupyter",
+        "ms-toolsai.jupyter-renderers",
+        "ms-toolsai.jupyter-keymap",
+        "redhat.vscode-yaml",
+        "ms-azuretools.vscode-docker",
+        "pkief.material-icon-theme",
+        "christian-kohler.path-intellisense"
+    ],
+
+    "forwardPorts": [8888],
+
+    "remoteUser": "root",
+
+    "postCreateCommand": "quarto check && echo 'Container ready!'"
+}

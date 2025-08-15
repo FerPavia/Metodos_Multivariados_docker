@@ -1,0 +1,16 @@
+jupyter
+ipywidgets
+nbconvert
+ipykernel
+pyyaml
+nbformat
+nbclient
+numpy
+pandas
+scikit-learn
+scipy
+statsmodels
+matplotlib
+seaborn
+plotly
+radian

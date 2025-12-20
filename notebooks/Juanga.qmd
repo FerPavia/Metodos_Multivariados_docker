@@ -1,0 +1,179 @@
+---
+title: Actividad Buscando a Juanga
+author: Mateo Tanaka
+format:
+   html:
+     toc: true
+     html-math-method: katex
+     embed-resources: true
+     self-contained-math: true
+     df-print: kable
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+## Paso 1: Cargando los datos y matriz de correlaciones
+
+Primero importamos las librerías, los datos y las funciones que se
+usarán. Aunado a esto dividiremos los datos en billetes reales y falsos
+
+```{python}
+#pip install seaborn
+```
+```{python}
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt 
+import seaborn as sns
+from sklearn.feature_selection import GenericUnivariateSelect
+from scipy import stats
+```
+
+```{python}
+bank = pd.read_csv('../DATA/bank_notes.csv')
+
+real_bills = bank[bank['type'] == 'sample']
+suspect_bills = bank[bank['type'] == 'suspect']
+```
+
+Ahora las instrucciones dictan que se obtenga una matriz de correlación
+con todos los datos (de billetes falsos y reales) para esto usaremos la
+variable `bank` y las funciones `heatmap()` y `df.corr()` de los módulos
+`seaborn` y `pandas`
+
+```{python}
+corr_mat = bank.corr(numeric_only = True)
+mask = np.triu(np.ones_like(corr_mat, dtype = np.bool))
+sns.heatmap(corr_mat, mask= mask, annot = True)
+```
+
+Dado que se nos pide que tomemos el umbral $|r|>0.7$ solo se poodrían
+conservar las variables `left` y `right` porque son las únicas que
+cumplen este criterio.
+
+## Paso 2: Selección de 6 variables
+
+Ahora se nos pide que usemos la función `GenericUnivariateSelect()` de
+`sklearn.feature_selection` en conjunto con la función `pearsonr()` de
+`scipy.stats`
+
+```{python}
+selector = GenericUnivariateSelect(stats.pearsonr, mode = 'k_best', param = 6)
+selector.fit(bank.drop(columns = 'type'),bank.drop(columns = 'type'))
+
+print(selector.get_feature_names_out())
+```
+
+El método de feature selection recalcó que las siguientes son las
+características importantes: - `right` - `width` - `bottom` - `top` -
+`weight` - `diag`
+
+## Paso 3: Pruebas de hipótesis para ver si difiere los billetes reales de los billetes falsos
+
+Para esta sección intentaremos probar si la media de la muestra de
+billetes reales en las variables que conservamos es difeferente a
+aquella de los billetes sospechosos, esto se representa con:
+$$H_{0}:\mu_{sample} = \mu_{suspect}; H_{a}: \mu_{sample} \neq \mu_{suspect}$$
+para esta prueba también usaremos $\alpha = 0.05$
+
+
+```{python}
+%run HotellingsTest.py
+
+keep_cols = selector.get_feature_names_out()
+
+for col in bank.columns:
+  if col not in keep_cols:
+    real_bills.drop(columns = col,inplace= True)
+    suspect_bills.drop(columns = col, inplace = True)
+
+
+statistic, pvalue = HotellingsT2Test(real_bills,suspect_bills)
+
+if pvalue >= 0.05:
+  print('No se rechaza la hipótesis nula')
+
+else:
+  print('Se rechaza la hhipótesis nula en favor de la hipótesis alternativa')
+```
+
+Dado que $p\_value \le \alpha$ se rechaza la hhipótesis nula, lo que
+significa que las medias de estas variables en efecto difieren entre
+poblaciones
+
+## Paso 4: Pruebas de hipótesis usando la $T^2$ de Hotelling
+
+Para esta sección se nos pide que usemos el vector de medias de los
+billetes reales para la siguiente prueba de hipótesis:
+$$H_{0}:\mu_{suspect} = \mu_{0}, H_{a}:\mu_{suspect} \neq \mu_{0}$$
+donde $\mu_{0} = \mu_{sample}$
+
+```{python}
+mu_0 = real_bills.mean(axis = 0).values
+
+n = len(suspect_bills)
+suspect_bar = suspect_bills.mean(axis = 0).values
+S_suspect = suspect_bills.cov()
+
+t2 = n*(suspect_bar - mu_0)@np.linalg.inv(S_suspect)@(suspect_bar - mu_0)
+
+p = suspect_bills.shape[1]
+alpha = 0.05
+
+f_quantile = stats.f.ppf(1-alpha, p, n-p)
+
+if (n-p)/((n-1)*p)*t2>f_quantile :
+  print('Se rechaza la hipótesis nula')
+else:
+  print('Se acepta la hipótesis nula')
+```
+
+Como se rechaza la hipótesis nula, se puede inferir que las medias de
+estos dos grupos son diferentes
+
+### Paso 5: Profile Plots
+
+Ahora se nos pide que hagamos un profile plot para ver que tanto parece
+que difieren de las medias de los billetes reales las de los billetes
+falsos. Para esto usaré la función de bonferroni desarrollada
+
+```{python}
+%run Bonferroni.py
+
+Z = suspect_bills/mu_0
+
+bf = bonferroni(suspect_bills)
+
+from plotnine import ggplot, aes, geom_pointrange, geom_hline, labs, theme_bw, theme, element_text, ggsave
+
+p = (ggplot(bf, aes(x = "variable", y = "mean")) +
+        geom_pointrange(aes(ymin = "lower", ymax = "upper"), color = "dodgerblue") +
+        geom_hline(yintercept = 1, linetype = "dashed", color = "gray") +
+        labs(x = "", y = "Ratio", title = "Profile plot") +
+        theme_bw() +
+        theme(plot_title = element_text(ha = "center",
+                                        weight = "bold",
+                                        margin = {"b":5}),
+              axis_title_x = element_text(weight = "bold"),
+              axis_title_y = element_text(weight = "bold", rotation = 90),
+              axis_text_x = element_text(size = 12, weight = "bold"),
+              legend_title = element_text(ha = "center", weight = "bold"),
+              legend_text = element_text(ha = "center"),
+              strip_text = element_text(ha = "center", weight = "bold",
+                                        margin = {"t":2, "r":3, "b":3, "l":3}),
+              plot_subtitle = element_text(ha = "center", weight = "bold",
+                                        size = 10, margin = {"b":5})) +
+        theme(figure_size = (7, 7*0.618)))
+p
+```
+
+La única media que discrepa 
+Por lo que se puede ver en el profile plot parece que la única media que discrepa es el valor del peso.
+
+## Paso 6: ¿cuál crees que sea la característica más relevante de un billete que ayude a detectar un billete falso?
+
+Dado que sí hay diferencia en sus medias pero no se nota mucha en la
+mayoría de las variables del profile plot creo que la variable más
+importante es el peso de los billetes. Esta parece ser la que tiene la
+mayor diiferenecia de la media de los billetes reales

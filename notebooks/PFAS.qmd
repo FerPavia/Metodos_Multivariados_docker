@@ -1,0 +1,151 @@
+---
+title: "Pfas"
+format: 
+    html:
+        toc: true
+        fontsize: 1.25em
+        html-math-method: katex
+        embed-resources: true
+        self-contained-math: true
+        df-print: kable
+---
+
+```{python}
+import pandas as pd
+import numpy as np
+import plotly.express as px
+
+```
+
+```{python}
+pfas_data = pd.read_csv("../DATA/pfas_data.csv")
+
+pfas_data.head()
+```
+
+```{python}
+pfas_data.info()
+```
+
+```{python}
+pfas_data["RDKIT_SMILES"].isna().mean()
+```
+```{python}
+molecules = pfas_data["RDKIT_SMILES"].tolist()
+molecules[:5]
+```
+
+```{python}
+#!pip install rdkit
+```
+
+```{python}
+from rdkit import Chem
+from rdkit.Chem import AllChem
+```
+
+```{python}
+mols = [Chem.MolFromSmiles(smiles) for smiles in molecules]
+```
+
+```{python}
+mols[:5]
+```
+
+```{python}
+fps = [AllChem.GetMACCSKeysFingerprint(mol) for mol in mols]
+
+fps[:5]
+```
+
+```{python}
+fps_array = np.array(fps)
+fps_array
+```
+
+```{python}
+from sklearn.manifold import TSNE
+```
+
+```{python}
+tsne = TSNE(n_components = 2, perplexity = 50, random_state = 42)
+```
+
+```{python}
+fps_tsne = tsne.fit_transform(fps_array)
+```
+
+```{python}
+tsne_df = pd.DataFrame(data = fps_tsne, columns = ["Component_1", "Component_2"],
+                     index = pfas_data['RDKIT_SMILES'])
+
+tsne_df.head()
+```
+
+
+```{python}
+pfas_classes = pd.read_csv("../data/pfas_classes.csv", index_col = "RDKIT_SMILES")
+```
+
+```{python}
+tsne_df_joined = pd.merge(tsne_df, pfas_classes, on = "RDKIT_SMILES", how = "inner")
+```
+
+```{python}
+tsne_df_joined.head()
+```
+
+```{python}
+fig = px.scatter(tsne_df_joined,
+                 x = "Component_1",
+                 y = "Component_2",
+                 color = "First_Class",
+                 hover_name = tsne_df_joined.index,
+                 hover_data = {"Component_1": ":.2f",
+                               "Component_2": ":.2f",
+                               "First_Class": True})
+
+fig.update_layout(title = "Moléculas de PFAS mediante t-SNE",
+                  xaxis_title = "Componente t-SNE 1",
+                  yaxis_title = "Componente t-SNE 2",
+                  height = 600, width = 900)
+fig.show()
+```
+
+```{python}
+tsne = TSNE(n_components = 3, perplexity = 50, random_state = 42)
+```
+
+```{python}
+fps_tsne = tsne.fit_transform(fps_array)
+```
+
+```{python}
+tsne_df = pd.DataFrame(data = fps_tsne,
+                     columns = ["Component_1", "Component_2", "Component_3"],
+                     index = pfas_data['RDKIT_SMILES'])
+```
+
+```{python}
+tsne_df_joined = pd.merge(tsne_df, pfas_classes, on = "RDKIT_SMILES", how = "inner")
+```
+
+```{python}
+fig = px.scatter_3d(tsne_df_joined,
+                    x = "Component_1",
+                    y = "Component_2",
+                    z = "Component_3",
+                    color = "First_Class",
+                    hover_name = tsne_df_joined.index,
+                    hover_data = {"Component_1": ":.2f",
+                                  "Component_2": ":.2f",
+                                  "Component_3": ":.2f",
+                                  "First_Class": True})
+
+fig.update_layout(scene = dict(xaxis_title = "Componente t-SNE 1",
+                               yaxis_title = "Componente t-SNE 2",
+                               zaxis_title = "Componente t-SNE 3"),
+                               height = 600, width = 900)
+fig.show()
+```
+
